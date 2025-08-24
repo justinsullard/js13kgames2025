@@ -1,0 +1,3 @@
+<style>body{margin:0;padding:0;display:flex;place-content:center;overflow:hidden}body,canvas{background-color:#101}#screen{flex:1;align-self:center}</style>
+<canvas id=screen width=640 height=480></canvas>
+<script type=module>let i=0,n=0,l=0,a=document.getElementById("screen"),f=a.getContext("2d"),m="v0.13.11193954024",o=Math.min,r=e=>{var t=o(1920,window.innerWidth),i=o(1080,window.innerHeight);a.width=t,a.height=i,f.fillStyle="#101",f.fillRect(0,0,t,i),f.fillStyle="#fff",f.font="16px monospace",f.fillText(`Alley Cat Noir ${m}: frame ${n} gametime `+l,10,i-10)},d=()=>requestAnimationFrame((e=0)=>{var t=e-i;i=e,n++,l+=t,r(),d()});d();</script>

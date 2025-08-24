@@ -1,0 +1,39 @@
+{
+  "name": "alleycatnoir",
+  "version": "0.13.11193954024",
+  "description": "Welcome to the Alley Cat Noir. Stay in the shadows. Catch those dirty rats. Watch out for dogs and pesky humans. You've got 9 lives. Use them wisely.",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "node scripts/test.js",
+    "build": "node scripts/build.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/justinsullard/js13kgames2025.git"
+  },
+  "keywords": [
+    "js13kgames",
+    "javascript",
+    "roguelike"
+  ],
+  "author": "Justin Sullard",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/justinsullard/js13kgames2025/issues"
+  },
+  "homepage": "https://github.com/justinsullard/js13kgames2025#readme",
+  "devDependencies": {
+    "@babel/parser": "^7.25.3",
+    "clean-css": "^5.3.3",
+    "fs-extra": "^11.2.0",
+    "google-closure-compiler": "^20240317.0.0",
+    "recursive-watch": "^1.1.4",
+    "roadroller": "^2.1.0",
+    "rollup": "^4.20.0",
+    "static-server": "^2.2.1",
+    "terser": "^5.31.6",
+    "uglify-js": "^3.19.2",
+    "yazl": "^2.5.1"
+  }
+}

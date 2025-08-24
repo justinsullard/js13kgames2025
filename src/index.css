@@ -1,0 +1,15 @@
+body {
+    margin: 0;
+    padding: 0;
+    display: flex;
+    place-content: center;
+    overflow: hidden
+}
+body, canvas {
+    background-color: #101;
+    /* cursor: none */
+}
+#screen {
+    flex: 1;
+    align-self: center
+}
