@@ -1,13 +1,14 @@
+html, body {
+    overflow: hidden;
+}
 body {
     margin: 0;
     padding: 0;
     display: flex;
     place-content: center;
-    overflow: hidden
 }
 body, canvas {
-    background-color: #101;
-    /* cursor: none */
+    background-color: #000;
 }
 #screen {
     flex: 1;

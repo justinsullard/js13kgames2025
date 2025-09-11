@@ -181,9 +181,17 @@ export const build = async () => {
 
     // minifications
     // attempt uglify
-    const { error: uglyerror, code: uglycode } = minify(rolledup, { mangle: { toplevel: true, properties: false } });
-    if (uglycode) {
-        await fs.writeFile(fpath("../build/staging/index.uglify.js"), uglycode);
+    let uglycode;
+    try {
+        const minified = minify(rolledup, { mangle: { toplevel: true, properties: false } });
+        if (minified.code) {
+            uglycode = minified.code;
+            await fs.writeFile(fpath("../build/staging/index.uglify.js"), uglycode);
+        } else if (minified.error) {
+            console.error("Uglify error", minified.error);
+        }
+    } catch (e) {
+        console.error("Error with minify", e);
     }
     // attempt terser
     let tersered;
@@ -196,7 +204,7 @@ export const build = async () => {
         console.error("Error with terser", e);
     }
     if (tersered) {
-        await fs.writeFile(fpath("../build/staging/index.terser.js"), uglycode);
+        await fs.writeFile(fpath("../build/staging/index.terser.js"), tersered);
     }
     // attempt roadroller
     const roadrollered = await roadrollerit(rolledup);
