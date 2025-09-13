@@ -27,7 +27,7 @@ const BLOCK_SIZE = GAME_SCALE * BLOCK_CELLS;
 
 const BPM = 160;
 const BEAT = 60000 / BPM;
-const TEMPO = BEAT / 2;
+const TEMPO = BEAT / 1.5; // BEAT / 2;
 const SPB = BEAT / 1000;
 const EIGHTH = BEAT / 2;
 const SIXTEENTH = BEAT / 4;
@@ -99,7 +99,101 @@ const intersection = (line1A, line1B, line2C, line2D) => {
     return vector(line1A.x + lambda * dX, line1A.y + lambda * dY);
 };
 
+function lineSegmentIntersectsCircle(from, to, center, radius) {
+    // p1, p2: {x, y} objects representing segment endpoints
+    // circleCenter: {x, y} object representing circle center
+    // circleRadius: number
 
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const segmentLengthSquared = dx * dx + dy * dy;
+
+    // Vector from P1 to circle center
+    const cx_minus_p1x = center.x - from.x;
+    const cy_minus_p1y = center.y - from.y;
+
+    let t = 0;
+    if (segmentLengthSquared !== 0) { // Avoid division by zero for zero-length segments
+        t = (cx_minus_p1x * dx + cy_minus_p1y * dy) / segmentLengthSquared;
+    }
+
+    // Clamp t to the range [0, 1] to find the closest point on the segment
+    t = Math.max(0, Math.min(1, t));
+
+    // Calculate the closest point on the segment
+    const closestPointOnSegment = {
+        x: from.x + t * dx,
+        y: from.y + t * dy
+    };
+
+    // Calculate the distance from the closest point to the circle's center
+    const distSq = Math.pow(closestPointOnSegment.x - center.x, 2) +
+                   Math.pow(closestPointOnSegment.y - center.y, 2);
+
+    return distSq <= Math.pow(radius, 2);
+}
+
+// const avoidCollision = (from, to, center, radius) => {
+
+//     const dx = to.x - from.x;
+//     const dy = to.y - from.y;
+//     const segmentLengthSquared = dx * dx + dy * dy;
+
+//     // Vector from P1 to circle center
+//     const cx_minus_p1x = center.x - from.x;
+//     const cy_minus_p1y = center.y - from.y;
+
+//     let t = 0;
+//     if (segmentLengthSquared !== 0) { // Avoid division by zero for zero-length segments
+//         t = (cx_minus_p1x * dx + cy_minus_p1y * dy) / segmentLengthSquared;
+//     }
+
+//     // Clamp t to the range [0, 1] to find the closest point on the segment
+//     t = Math.max(0, Math.min(1, t));
+
+//     // Calculate the closest point on the segment
+//     const closestPointOnSegment = {
+//         x: from.x + t * dx,
+//         y: from.y + t * dy
+//     };
+
+//     // Calculate the distance from the closest point to the circle's center
+//     const distSq = Math.pow(closestPointOnSegment.x - center.x, 2) +
+//                    Math.pow(closestPointOnSegment.y - center.y, 2);
+
+//     if (distSq > Math.pow(radius, 2)) {
+//         return;
+//     }
+
+//     const diff = subtractVectors(from, center);
+
+//     const d = measureVector(diff);
+//     if (d < radius) {
+//         // Point is inside the circle
+//         // console.log("point inside circle", { from, to, center, radius, diff, d });
+//         return;
+//     }
+//     const alpha = vectorRadians(diff);
+//     // const beta = asin(radius / d);
+//     const beta = atan(radius / d);
+//     if (isNaN(beta)) {
+//         // console.log("beta isNaN", { from, to, center, radius, diff, d, alpha, beta });
+//         return;
+//     }
+//     const tangents = [
+//         radiansToVector(alpha - beta),
+//         radiansToVector(alpha + beta),
+//     ].map(p => [
+//         addVectors(center, scaleVector(p, radius + 0.5)),
+//         distanceBetween(p, from) + distanceBetween(p, to)
+//     ]);
+//     // console.log("tangents", { diff, alpha, beta, tangents });
+//     // Which is closer to both from and to, otherwise choose the right one apparently
+//     return tangents[0][1] < tangents[1][1] ? tangents[0][0] : tangents[1][0];
+// };
+// window.avoidCollision = avoidCollision;
+
+const fix = (n, d = 2) => n.toFixed(d);
 const stamp = () => Date.now();
 const stripe = (l = 0, fn = x => x) => new Array(l).fill(0).map((x, i) => i).map(fn);
 
@@ -123,14 +217,6 @@ const easeOutElastic = t => t === 0
         ? 1
         : pow(2, -10 * 2) * sin((t * 10 - 0.75) * PIZZA_3) + 1
     );
-window.easeFunctions = {
-    easeInBezier,
-    easeInSin,
-    easeInOutExpo,
-    easeInOutSin,
-    easeOutBack,
-    easeOutElastic,
-};
 
 const rotate = ([x, y], a) => [x * cos(a) - y * sin(a), x * sin(a) + y * cos(a)];
 const lerpAngle = (x, y, t) => {
@@ -436,15 +522,6 @@ const compositeSprite = (sprite, cleanup = false) => {
 
 // Game Definitions ============================================
 
-const entity = (seed = stamp(), x = 0, y = 0, rot = 0) => ({
-    seed,
-    position: vector(x, y),
-    velocity: vector(),
-    rot,
-    home: null,
-    speed: 2,
-});
-
 const entityGroups = () => ({
     dumpsters: [],
     lights: [],
@@ -454,8 +531,23 @@ const entityGroups = () => ({
     bags: [],
     boxes: [],
     doors: [],
-    curtains: [],
     sewers: [],
+});
+
+const entity = (seed = stamp(), x = 0, y = 0, rot = 0) => ({
+    seed,
+    position: vector(x, y),
+    rot,
+});
+
+const actor = (seed, x, y, r) => ({
+    ...entity(seed, x, y,r),
+    home: null,
+    speed: 2,
+    target: null,
+    action: null,
+    path: [],
+    easeFunction: easeInOutSin,
 });
 
 const action = (kind = "idle", from = vector(), to = vector(), dur = BEAT / 2, diff = subtractVectors(to, from)) => ({
@@ -489,43 +581,42 @@ const light = (seed, x, y, r) => ({
 const puddle = (seed, x, y, r, d = 2) => ({
     ...entity(seed, x, y, r),
     diameter: d,
+    radius: d / 2,
 });
 
 const splatter = (seed, x, y, r, d = 1, c = RED) => ({
     ...entity(seed, x, y, r),
     diameter: d,
+    radius: d / 2,
     color: c,
 });
 
 const paper = (seed, x, y, r, d = 2, c = BROWN) => ({
     ...entity(seed, x, y, r),
     diameter: d,
+    radius: d / 2,
     color: c,
-});
-
-
-const curtain = (seed, x, y, r) => ({
-    ...light(seed, x, y, r),
 });
 
 const dumpster = (seed, x, y, r) => ({
     ...entity(seed, x, y, r),
+    diameter: 5.25,
+    radius: 2.625,
+    width: 4,
+    height: 3.25,
+    visited: false,
     contents: [],
 });
 
 const cat = (seed = stamp()) => ({
-    ...entity(seed),
+    ...actor(seed),
     home: dumpster(seed),
     speed: 4, reach: 2,
     lives: 9, kills: 0,
     streak: 0, maxStreak: 0,
-    distance: 0,
-    score: 0,  multiplier: 1,
-    dead: false,
-    action: null,
-    path: [],
-    mouth: [],
-    // easeFunction: easeOutBack,
+    distance: 0, distanceTotal: 0,
+    score: 0, multiplier: 1,
+    dead: false, sticky: false,
     easeFunction: easeInOutExpo,
 });
 
@@ -537,21 +628,25 @@ const sewer = (seed, x, y, r) => ({
 const bag = (seed, x, y, r, d = 1.5) => ({
     ...entity(seed, x, y, r),
     contents: [],
+    radius: d / 2,
     diameter: d,
+    color: squirrelPick(seed, x, y, [GRAY, YELLOW, BGB]),
 });
 
 const box = (seed, x, y, r) => ({
     ...entity(seed, x, y, r),
     top: squirrelBit(seed, x, y + 1),
     bottom: squirrelBit(seed, x, y - 1),
+    radius: 1,
+    diameter: 2,
 });
 
 const rat = (seed, x, y, r) => ({
-    ...entity(seed, x, y, r),
+    ...actor(seed, x, y, r),
 });
 
 const dog = (s, x, y, r) => ({
-    ...entity(s, x, y, r),
+    ...actor(s, x, y, r),
     home: box(s, x, y, r),
 });
 
@@ -559,36 +654,31 @@ const door = (s, x, y, r) => ({
     ...entity(s, x, y, r),
     pickups: [],
     open: 0,
+    radius: 1,
+    diameter: 2,
 });
 
 const human = (s, x, y, r) => ({
-    ...entity(s, x, y, r),
+    ...actor(s, x, y, r),
     home: door(s, x, y),
 });
 
 // const neighborhood = stripe(BLOCK_CELLS, (x) => stripe(BLOCK_CELLS, y => vector(x - BLOCK_CELLS / 2, y - BLOCK_CELLS / 2))).filter(v => (v.x + v.y) % 2 === 0);
-const neighborhood = stripe(
+const grid = stripe(
     BLOCK_CELLS - 1,
     (x) => stripe(
         BLOCK_CELLS - 1,
         y => vector(x - (BLOCK_CELLS - 2) / 2, y - (BLOCK_CELLS - 2) / 2)
     )
-).flat().filter(v => (v.x + v.y) % 2 === 0);
+).flat();
+const neighborhood = grid.filter(v => (v.x + v.y) % 2 === 0);
 const corners = [
     [-5, -5],
-    [5,5],
-    [-5,5],
-    [5,-5],
+    [5, 5],
+    [-5, 5],
+    [5, -5],
 ].map(x => vector(...x));
-const walls = texture(21, 21).do(s => {
-    s.center()
-        .fillStyle("#000")
-        .fillRect(-9.5, -9.5, 9, 9)
-        .fillRect(-9.5, 0.5, 9, 9)
-        .fillRect(0.5, -9.5, 9, 9)
-        .fillRect(0.5, 0.5, 9, 9);
-});
-
+const trashy = grid.filter(v => (v.x + v.y) % 2 && measureVector(v) > 2.5);
 const block = (seed, x, y, address) => {
     const h = !!(address.x % 10);
     const v = !!(address.y % 10);
@@ -605,19 +695,12 @@ const block = (seed, x, y, address) => {
         ...entityGroups(),
     };
     let clutter = 2;
+    let trash = 1;
     if (t === 0) {
         clutter += 3;
-        // Intersection
-        // If it's the 
-        // generated.dumpster = x === 0 && y === 0
-        //     ? current.player.home
-        //     : (
-        //         squirrelBit(seed, x, y)
-        //             ? dumpster(seed, x + squirrelBias(seed + 1, x, y), y, squirrelRotation(seed, x + 23, y - 8))
-        //             : null
-        //     );
         if (x === 0 && y === 0) {
             generated.dumpsters.push(current.player.home);
+            current.player.home.visited = true;
         } else if (squirrelBit(seed, x, y)) {
             generated.dumpsters.push(dumpster(seed, x + squirrelBias(seed + 1, x, y), y, squirrelRotation(seed, x + 23, y - 8)));
         }
@@ -628,9 +711,9 @@ const block = (seed, x, y, address) => {
                 const obj = light(seed + i, l.x + x, l.y + y);
                 generated.lights.push(obj);
             });
+            trash += 2;
     } else if (t === 2 || t === 5 || t === 8) {
-        // Lights
-        //     (doors and boxes)
+        // Lights, doors and boxes
         clutter += 2;
         const dir = squirrelDir(seed - 7, x, y);
         const where = addVectors(
@@ -643,22 +726,23 @@ const block = (seed, x, y, address) => {
         const obj = light(seed + 13, where.x, where.y);
         obj.radius += 2;
         generated.lights.push(obj);
+        trash += 1;
     } else {
         clutter += 5;
-        // Secondary blocks (curtains, boxes)
-        // possible sewer
+        // Boxes, possible sewer
+        trash += 3;
     }
-    // clutter = stripe(clutter, i => addVectors(
-    //     scaleVector(
-    //         squirrelVector(seed, x + i, y * i - x),
-    //         squirrelFloat(seed, x - i * i, y + i + x) * BLOCK_CELLS / 2
-    //     ),
-    //     generated.position
-    // ));
     clutter = squirrelShuffle(seed, x, y, neighborhood)
         .slice(0, clutter)
         .map(p => addVectors(
             scaleVector(squirrelVector(seed, p.x + 7367, p.y - 87863), 0.5),
+            addVectors(p, generated.position),
+        ));
+    trash = squirrelShuffle(seed, x, y, trashy)
+        .filter(x => (!generated.horizontal || abs(x.y) > 2) || (!generated.vertical || abs(x.x) > 2))
+        .slice(0, trash)
+        .map(p => addVectors(
+            scaleVector(squirrelVector(seed, p.x - 7367, p.y + 87863), 0.5),
             addVectors(p, generated.position),
         ));
     // puddles
@@ -695,16 +779,16 @@ const block = (seed, x, y, address) => {
             squirrelPick(s, p.x, p.y, [BROWN, PURPLE, GRAY, ORANGE])
         ));
     });
-    // // bags
-    // stripe(clutter.length, i => {
-    //     const p = clutter.shift();
-    //     generated.bags.push(bag(
-    //         squirrel(seed, p.x, p.y),
-    //         p.x, p.y,
-    //         squirrelRotation(seed, p.x / 7, p.y * 1.3),
-    //         1.5 + squirrelFloat(seed, p.y / 2, p.x * 3) * 1.5
-    //     ));
-    // });
+    // bags
+    stripe(trash.length, i => {
+        const p = trash.shift();
+        generated.bags.push(bag(
+            squirrel(seed, p.x, p.y),
+            p.x, p.y,
+            squirrelRotation(seed, p.x / 7, p.y * 1.3),
+            1 + squirrelFloat(seed, p.y / 2, p.x * 3) * 1.5
+        ));
+    });
     return generated;
 };
 
@@ -714,6 +798,7 @@ const game = (seed = stamp() % MAX_SEED) => ({
     now: 0,
     frame: 0,
     gametime: 0,
+    speed: 1,
     paused: true,
     camera: camera(seed),
     player: cat(seed),
@@ -748,6 +833,14 @@ const logo = doodle(
         }),
     1313
 );
+const walls = texture(21, 21).do(s => {
+    s.center()
+        .fillStyle("#000")
+        .fillRect(-9.5, -9.5, 9, 9)
+        .fillRect(-9.5, 0.5, 9, 9)
+        .fillRect(0.5, -9.5, 9, 9)
+        .fillRect(0.5, 0.5, 9, 9);
+});
 let debug = false;
 const debugSprite = (sprite) => {
     if (!debug) {
@@ -931,11 +1024,11 @@ const renderPaper = (obj, d = 256, c = GRAY, t = 4) => {
 };
 
 
-const renderBag = (obj, d = GAME_SCALE, c = GRAY, t = 3) => {
+const renderBag = (obj, d = ceil(obj.diameter * GAME_SCALE), c = obj.color, t = 3) => {
     const sprite = getSprite(obj, d, d, c, t);
     scribbleLoop(obj.seed, d, d, sprite.bg);
     // Now let's ensure there is at least a center circle
-    sprite.shadow = FGA;
+    // sprite.shadow = FGA;
     const rot = squirrelBias(obj.seed, obj.position.x, d - t) * PI
     sprite.bg.do(s => s
         .fillStyle(BG)
@@ -1126,10 +1219,10 @@ const renderLight = (obj, d = obj.radius * 2, c = "#fff8", t = 5) => {
 };
 
 const renderDumpster = (obj) => {
-    const d = 5.25 * GAME_SCALE | 0;
-    const w = 4 * GAME_SCALE;
+    const d = obj.diameter * GAME_SCALE | 0;
+    const w = obj.width * GAME_SCALE;
     const w2 = w / 2;
-    const h = 3.25 * GAME_SCALE;
+    const h = obj.height * GAME_SCALE;
     const h2 = h / 2;
     const sprite = getSprite(obj, d, d, GREEN, 3);
     sprite.bg.do(s => {
@@ -1148,9 +1241,9 @@ const renderDumpster = (obj) => {
             0,
             0,
             squirrelRotation(obj.seed + 1, 0, 0),
-            ceil((1.5 + squirrelFloat(obj.seed + 1, 0, 0)) * GAME_SCALE)
+            ceil((1.5 + squirrelFloat(obj.seed + 1, 0, 0)))
         );
-        const wbuff = w2 - trash.diameter / 2 - 8;
+        const wbuff = w2 - trash.diameter / 2 - 12;
         const hbuff = h2 - trash.diameter / 2 - 8;
         s.center()
             .rotate(obj.rot)
@@ -1161,8 +1254,8 @@ const renderDumpster = (obj) => {
             .drawImage(
                 renderBag(
                     trash,
-                    trash.diameter,
-                    squirrelPick(trash.seed, -1, 9, [BGB, FGA, YELLOW, PUKE])
+                    // trash.diameter,
+                    // squirrelPick(trash.seed, -1, 9, [FGA, BGB])
                 ).final.screen,
                 -trash.diameter / 2 + squirrelBias(trash.seed, 8, 23) * wbuff,
                 -trash.diameter / 2 + squirrelBias(trash.seed, 2, 1) * hbuff
@@ -1224,6 +1317,7 @@ const mouse = {
     click: false,
     touchScreen: false,
     touch: false,
+    target: null,
     path: [],
     dist: 0,
 };
@@ -1232,7 +1326,7 @@ window.mouse = mouse;
 // This is a naive algorithm that will not consider alternative corner turning options
 // It is a simple horizontal/vertical turn in the preferred direction
 // It will likely favor right turns
-const plotPath = (from, to, speed = 2) => {
+const plotPath = (from, to, speed = 2, isTarget = true, depth = 0) => {
     const path = [];
     const sourceBlock = vectorGameBlock(from);
     const targetBlock = vectorGameBlock(to);
@@ -1240,13 +1334,14 @@ const plotPath = (from, to, speed = 2) => {
         return path;
     }
     const fromTo = subtractVectors(to, from);
+    const dist = measureVector(fromTo);
     // Check if we have turned a corner of some sort
     // Any path between blocks with a common x or y are solvable with collision detection, no need to do corner turning
-    let collision;
-    let junction;
-    let offset;
+    let anchor;
     const corner = BLOCK_CELLS / 2;
     if (sourceBlock.x !== targetBlock.x && sourceBlock.y !== targetBlock.y) {
+        let junction;
+        let offset;
         // Check for wall collision.
         if (sourceBlock.y % 10) {
             // vertical to horizontal block
@@ -1257,15 +1352,38 @@ const plotPath = (from, to, speed = 2) => {
             junction = vector(targetBlock.x, sourceBlock.y);
             offset = vector(-sign(fromTo.x) * corner, sign(fromTo.y) * corner);
         }
+        offset = scaleVector(offset, (corner - 0.5) / corner);
         const wallC = addVectors(scaleVector(sourceBlock, BLOCK_CELLS), offset);
         const wallD = addVectors(scaleVector(junction, BLOCK_CELLS), offset);
-        // If there's an intersection,
-        collision = intersection(from, to, wallC, wallD);
+        if (intersection(from, to, wallC, wallD)) {
+            anchor = addVectors(scaleVector(junction, BLOCK_CELLS), offset);
+        }
+    // } else if (depth < 10) {
+    //     // We need to test against dumpsters, bags, boxes, and doors, sorted by distance
+        
+    //     const obstacles = [
+    //         ...current.activeGroups.dumpsters,
+    //         ...current.activeGroups.bags,
+    //         ...current.activeGroups.boxes,
+    //         ...current.activeGroups.doors,
+    //     ]
+    //         .filter(obj => distanceBetween(to, obj.position) > obj.radius)
+    //         .map(obj => [obj, distanceBetween(obj.position, from)])
+    //         .sort((a, b) => a[1] - b[1])
+    //         // .reduce((r, [obj]) => r ?? avoidCollision(from, to, obj.position, obj.radius), null);
+    //     let target;
+    //     for (const [obj] of obstacles) {
+    //         anchor = avoidCollision(from, to, obj.position, obj.radius);
+    //         if (anchor) {
+    //             target = obj;
+    //             break;
+    //         }
+    //     }
     }
-    if (collision) {
-        const anchor = addVectors(scaleVector(junction, BLOCK_CELLS), scaleVector(offset, (corner - 0.5) / corner));
-        path.push(...plotPath(from, anchor, speed, debug));
-        path.push(...plotPath(anchor, to, speed, debug));
+    if (anchor) {
+        // const anchor = collision;
+        path.push(...plotPath(from, anchor, speed, false, depth + 1));
+        path.push(...plotPath(anchor, to, speed, isTarget, depth + 2));
     } else {
         const dist = measureVector(fromTo);
         const steps = ceil(dist / speed);
@@ -1279,7 +1397,6 @@ const plotPath = (from, to, speed = 2) => {
     }
     return path;
 };
-window.plotPath = (...x) => plotPath(...x);
 
 const updateMouse = () => {
     const { x, y } = mouse.real;
@@ -1314,7 +1431,23 @@ const updateMouse = () => {
     const targetBlock = vectorGameBlock(mouse.position);
     mouse.path.length = 0;
     if (targetBlock) {
-        // Check for mouse interactions with rats, dumpsters, boxes, bags, and alley floor
+        // Check for mouse interactions with rats, dumpsters, boxes, bags, and finally just the alley floor
+        let target = current.activeGroups.dumpsters.find(d => {
+            // Check if our point is inside of the rectangle of the dumpster
+            const checkpoint = rotateVector(subtractVectors(d.position, mouse.position), -d.rot);
+            if (measureVector(checkpoint) <= d.diameter) {
+                return abs(checkpoint.x) <= d.width / 2 && abs(checkpoint.y) <= d.height / 2;
+            }
+        });
+        if (!target) {
+            target = current.activeGroups.bags
+                .map(b => [b, distanceBetween(b.position, mouse.position)])
+                .filter(([b, m]) => m < b.radius)
+                .sort((a, b) => a[1] - b[1])[0]?.[0];
+        }
+
+        mouse.target = target;
+
         // If it overlaps, we can setup the path towards it
         // We have to account for the current pending path point for the cat, as that will be a destination it is traveling towards
         const startPoint = player.path[0] ?? player.position;
@@ -1322,7 +1455,7 @@ const updateMouse = () => {
         if (addPlayerPosition) {
             mouse.path.push(player.position);
         }
-        mouse.path.push(...plotPath(startPoint, mouse.position, player.speed));
+        mouse.path.push(...plotPath(startPoint, (target ?? mouse).position, player.speed));
         // const startToMouse = subtractVectors(mouse.position, startPoint);
         // const dist = measureVector(startToMouse);
         // const steps = ceil(dist / player.speed);
@@ -1334,7 +1467,6 @@ const updateMouse = () => {
         //     mouse.path.push(curr);
         // }
 
-
         if (mouse.click) {
             // Check if we have an overlapping item inside the block in question
             // Pop everything else off the mouse path, and plug the rest of the path into the player
@@ -1342,6 +1474,7 @@ const updateMouse = () => {
             // player.position.x = mouse.position.x;
             // player.position.y = mouse.position.y;
             player.path.splice(1, player.path.length - 1, ...mouse.path.slice(addPlayerPosition ? 2 : 1));
+            player.target = mouse.target;
         }
     }
     mouse.click = false;
@@ -1368,14 +1501,24 @@ const updatePlayer = (delta = 0) => {
                 const dest = lerpVector(curr.from, curr.to, t);
                 if (!isNaN(dest.x) && !isNaN(dest.y)) {
                     player.position = dest;
-                } 
+                }
                 player.rot = lerpAngle(player.rot, curr.rot, 0.1);
                 if (curr.elapsed >= curr.dur) {
+                    const newDist = player.distance + curr.length;
+                    if (newDist % 10 < curr.length) {
+                        player.score += player.multiplier;
+                    }
+                    if (newDist % 1000 < curr.length) {
+                        player.multiplier += 1;
+                    }
+                    player.distance += curr.length;
+                    player.distanceTotal += curr.length;
+
                     // Action is complete, should we:
                     // - play a sound
                     // - add paw prints
                     // - make a splash?
-                    
+
                     // Pop off the first path and clear the action
                     player.path.shift();
                     player.action = null;
@@ -1456,7 +1599,7 @@ const updateCamera = (delta, targetMax = 2, playerMax = 8) => {
         mouse,
         // Add in dogs and humans and rats here
     ])
-        .filter(x => x === mouse || measureVector(subtractVectors(x.position, player.position)) <= playerMax)
+        .filter(x => x === mouse || distanceBetween(x.position, player.position) <= playerMax)
         .map((x, i) => subtractVectors(x.position, player.position))
         .reduce((r, x, i, a) => addVectors(r, scaleVector(x, 1 / a.length / 2)), vector());
     let em = measureVector(enemies);
@@ -1500,6 +1643,7 @@ const doNewGame = (seed = stamp()) => {
     updateMap(0);
 };
 doNewGame(/* 13 */); // Always start with the seed 13 for now.
+window.doNewGame = doNewGame;
 
 const update = (delta) => {
     updateDJ(delta);
@@ -1633,7 +1777,8 @@ const drawGeneric = (obj, fn) => {
     if (!hasSprite(obj)) {
         fn(obj);
     }
-    drawSprite(getSprite(obj), obj)
+    const s = getSprite(obj)
+    drawSprite(s, obj, mouse.target === obj ? FG : s.shadow);
 };
 
 const drawPlayer = () => {
@@ -1735,7 +1880,7 @@ const drawPlayer = () => {
     // gameCtx.stroke();
     // // For each node in the path, we either moveTo, or we LineTo
     // gameCtx.restore();
-    
+
     // drawPath(mouse.path.slice(player.path.length ? 1 : 0), FG, 0.5);
     if (!mouse.touchScreen || mouse.touch) {
         drawPath(mouse.path.slice(player.path.length ? 1 : 0));
@@ -1780,49 +1925,27 @@ const drawLightFX = (obj) => {
 
 const drawMouse = () => {
     // if (mouse.touchScreen && !mouse.touch) { return; }
-    // For now, we'll ignore changing anything other than the drawing of it
     const hit = !current.player.dead && mouse.path.length;
-    const bg = hit ? FGA : RED; // We should base this on if it's allowed or not
-    const fg = BG; // We should base this on if it's allowed or not
+    const bg = hit ? (mouse.target ? GREEN : FGA) : RED;
+    const fg = BG;
     renderPawPrint(mouse, bg, fg);
     drawSprite(mouseSprite, mouse);
     if (current.player.dead) {
         return;
     }
-    // // Should we now add a possible thing for it? Good question
-    // gameCtx.save();
-    // gameCtx.globalAlpha = 0.5;
-    // gameCtx.lineWidth = 1;
-    // gameCtx.setLineDash([2, 3]);
-    // gameCtx.strokeStyle = FG;
-    // gameCtx.beginPath();
-    // const last = mouse.path - 1;
-    // mouse.path.forEach((vec, i) => {
-    //     const x = vec.x * GAME_SCALE;
-    //     const y = vec.y * GAME_SCALE;
-    //     if (i && 1 != last) {
-    //         gameCtx.lineTo(x, y);
-    //         gameCtx.arc(x, y, 7, 0, PIZZA);
-    //     }
-    //     gameCtx.moveTo(x, y);
-    // });
-    // gameCtx.stroke();
-    // // For each node in the path, we either moveTo, or we LineTo
-    // gameCtx.restore();
 };
-const fix = n => n.toFixed(2);
 
 let pauseScreen = null;
-let drawDeltas = stripe(7);
-let lowFPS = 0;
+// let drawDeltas = stripe(7);
+// let lowFPS = 0;
 const draw = (delta) => {
-    let fps = 0;
-    drawDeltas.push(delta);
-    drawDeltas.shift();
-    fps = 1000 / (drawDeltas.reduce((a, b) => a + b, 0) / 7);
-    if (fps < 55) {
-        lowFPS = max(0, min(lowFPS + 5, 30));
-    }
+    // let fps = 0;
+    // drawDeltas.push(delta);
+    // drawDeltas.shift();
+    // fps = 1000 / (drawDeltas.reduce((a, b) => a + b, 0) / 7);
+    // if (fps < 55) {
+    //     lowFPS = max(0, min(lowFPS + 5, 30));
+    // }
     if (current.paused && !pauseScreen && current.gametime) {
         const w = gameCanvas.width;
         const h = gameCanvas.height;
@@ -1882,7 +2005,7 @@ const draw = (delta) => {
     // Draw Puddles
     entities.puddles.forEach(drawPuddle);
     // Draw Bags
-    entities.bags.forEach(drawBag);
+    entities.bags.forEach(x => drawGeneric(x, renderBag));
     // Draw Box Bottoms
     // Draw Rats
     // Draw Dumpster Bottoms
@@ -1919,31 +2042,39 @@ const draw = (delta) => {
     gameCtx.restore();
     // Draw HUD
     // score and multiplier
+    gameCtx.font = '42px bold Courier New, monospace';
+    gameCtx.fillStyle = FG;
+    gameCtx.fillText(fix(current.player.score, 0), 10, 42);
+    gameCtx.font = '32px bold Courier New, monospace';
+    gameCtx.fillStyle = GREEN;
+    gameCtx.fillText(`x${fix(current.player.multiplier, 0)}`, 10, 74);
     // lives
-    // pause button or 
+    // pause button or
 
 
     // // Temp for the moment
     // const { player } = current;
-    if (fps) {
-        gameCtx.fillStyle = FG;
-        gameCtx.font = 'bold 10px monospace';
-        gameCtx.fillText(`FPS: ${fps | 0}`, 10, HEIGHT - 12);
-        if (lowFPS) {
-            lowFPS--;
-            gameCtx.fillStyle = RED;
-            gameCtx.fillText("LOW FPS WARNING", 10, HEIGHT - 22);
-        }
-    }
-    // gameCtx.fillText(`Player [${fix(player.position.x)}, ${fix(player.position.y)}]: Mouse [${fix(mouse.position.x)}, ${fix(mouse.position.y)}]`, 10, HEIGHT - 24);
-    // gameCtx.fillText(`Alley Cat Noir ${version}: seed ${current.seed} frame ${current.frame} gametime ${current.gametime.toFixed(3)}${current.paused ? " paused" : ""} mouse ${mouse.path.length}`, 10, HEIGHT - 10);
+    // if (fps) {
+    //     gameCtx.fillStyle = FG;
+    //     gameCtx.font = 'bold 10px monospace';
+    //     gameCtx.fillText(`FPS: ${fps | 0}`, 10, HEIGHT - 12);
+    //     if (lowFPS) {
+    //         lowFPS--;
+    //         gameCtx.fillStyle = RED;
+    //         gameCtx.fillText("LOW FPS WARNING", 10, HEIGHT - 22);
+    //     }
+    // }
+    gameCtx.fillStyle = FG;
+    gameCtx.font = 'bold 10px monospace';
+    gameCtx.fillText(`Player [${fix(current.player.position.x)}, ${fix(current.player.position.y)}]: Mouse [${fix(mouse.position.x)}, ${fix(mouse.position.y)}]`, 10, HEIGHT - 24);
+    gameCtx.fillText(`Alley Cat Noir ${version}: seed ${current.seed} frame ${current.frame} gametime ${current.gametime.toFixed(3)}${current.paused ? " paused" : ""} mouse ${mouse.path.length}`, 10, HEIGHT - 10);
     // Object.entries(entities).forEach(([k, a], i) => gameCtx.fillText(` - ${k}: ${a.length}`, 10, HEIGHT - 12 * (i + 3)));
 };
 
 // Game loop
 
 const r = () => requestAnimationFrame((time = 0) => {
-    const delta = time - current.now;
+    const delta = (time - current.now) * (current.speed ?? 1);
     current.now = time;
     current.frame++;
     current.totaltime += delta;
@@ -1971,16 +2102,8 @@ listen(window, "keydown", (ev) => {
 });
 
 
-const isTouchDevice = () => {
-  const isMobile = /android|ipad|iphone|ipod|windows phone|iemobile|blackberry|webos|opera mini/i.test(navigator.userAgent || navigator.vendor || window.opera);
-    return isMobile && (
-        'ontouchstart' in window ||
-        navigator.maxTouchPoints > 0 ||
-        navigator.msMaxTouchPoints > 0 // for older IE versions
-    );
-};
-
-if (isTouchDevice()) {
+// Check if touch device
+if (/android|ipad|iphone|ipod|windows phone|iemobile|blackberry|webos|opera mini/i.test(navigator.userAgent || navigator.vendor || window.opera) && ('ontouchstart' in window || navigator.maxTouchPoints > 0)) {
     mouse.touchScreen = true;
     let touchtime = 0;
     listen(window, "touchstart", (ev) => {
@@ -1989,9 +2112,7 @@ if (isTouchDevice()) {
         mouse.real.x = touch.clientX;
         mouse.real.y = touch.clientY;
         mouse.touch = true;
-        touchtime = Date.now();
-        // mouse.click = !current.paused;
-        // if (current.paused) { current.paused = false; }
+        touchtime = stamp();
     });
     listen(window, "touchmove", (ev) => {
         const [touch] = ev.touches;
@@ -1999,8 +2120,6 @@ if (isTouchDevice()) {
         mouse.real.x = touch.clientX;
         mouse.real.y = touch.clientY;
         mouse.touch = true;
-        // mouse.click = !current.paused;
-        // if (current.paused) { current.paused = false; }
     });
     listen(window, "touchend", (ev) => {
         const [touch] = ev.changedTouches;
@@ -2008,7 +2127,7 @@ if (isTouchDevice()) {
         mouse.real.x = touch.clientX;
         mouse.real.y = touch.clientY;
         mouse.touch = false;
-        if (Date.now() - touchtime < 500) {            
+        if (stamp() - touchtime < 500) {
             mouse.click = !current.paused;
             if (current.paused) { current.paused = false; }
         }
@@ -2025,7 +2144,9 @@ if (isTouchDevice()) {
         mouse.real.x = ev.clientX;
         mouse.real.y = ev.clientY;
         mouse.click = !current.paused;
-        if (current.paused) { current.paused = false; }
+        if (current.paused) {
+            current.paused = false;
+        }
     });
     listen(document, "mousemove", ({ clientX: x, clientY: y }) => {
         mouse.real.x = x;
@@ -2084,12 +2205,6 @@ const hireDJ = () => {
                 [20, 8, 2.5], // cry
             ],
             bass: [
-                // [3, 4, 4],
-                // [4, 10, 4],
-                // [8,  9, 4],
-                // [12,  4, 4],
-                // [16, 9, 4],
-                // [20, 8, 7],
                 [4, 10, 3], // give
                 [6, 10, 4], // you
                 [8,  9, 7], // up
@@ -2098,7 +2213,91 @@ const hireDJ = () => {
                 [18, 9, 4], // you
                 [20, 8, 7], // cry
             ],
-        }
+        },
+        strangers: {
+            scale: 2,
+            octave: 2,
+            key: 3,
+            notes: [
+                [0,  0, 1],
+                [1,  2, 1],
+                [2,  3, 1],
+                [3,  4, 1],
+
+                [4,  5, 1],
+                [5,  4, 1],
+                [6,  2, 1],
+                [7,  0, 1],
+
+                [8,  0, 1],
+                [9,  2, 1],
+                [10, 3, 1],
+                [11, 4, 1],
+
+                [12, 5, 1],
+                [13, 4, 1],
+                [14, 2, 1],
+                [15, 0, 1],
+
+                [16,  0, 1],
+                [17,  2, 1],
+                [18,  3, 1],
+                [19,  4, 1],
+
+                [20, 5, 1],
+                [21, 4, 1],
+                [22, 2, 1],
+                [23, 0, 1],
+            ],
+            bass: [
+                [0,  0, 4],
+                [4,  5, 4], // [4,  -3, 4],
+                [8,  0, 4],
+                [12, 5, 4], // [12, -3, 4],
+                [16,  0, 4],
+                [20, 5, 4], // [20, -3, 4],
+            ],
+        },
+        ohno: {
+            scale: 6,
+            octave: 3,
+            key: 8,
+            notes: [
+                [0, 0, 1],
+                [1, 1, 1],
+                [2, 2, 1],
+                [3, 0, 1],
+                [4, 1, 1],
+                [5, 2, 1],
+                [6, 3, 1],
+                [7, 4, 1],
+                [8, 5, 1],
+                [9, 4, 3],
+
+                [12, 7, 1],
+                [13, 8, 1],
+                [14, 9, 1],
+                [15, 7, 1],
+                [16, 8, 1],
+                [17, 9, 1],
+
+                [18, 4, 1],
+                [19, 5, 1],
+                [20, 6, 1],
+                [21, 7, 3],
+            ],
+            bass: [
+                [0, 0, 3],
+                [3, 0, 3],
+                [6, 3, 3],
+                [9, 4, 3],
+                [12, 0, 3],
+                [15, 0, 3],
+                [18, 5, 2], // [18, -3, 2],
+                [20, 7, 1], // [20, -1, 1],
+                [21, 0, 3],
+            ],
+        },
     };
     const notes = stripe(144, x => 432 * 2**((x - (48)) / 12));
     const scales = stripe(7, i => {
@@ -2122,16 +2321,23 @@ const hireDJ = () => {
         // scale  = scales[(melody.scale + measure + 1) % scales.length];
 
         // randomly switch modes
-        scale = squirrelPick(current.seed, measure, key, scales);
+        if (measure && measure % 12 === 0) {
+            changeMelody(squirrelPick(current.seed, measure, key, Object.keys(melodies)));
+        } else if (measure % 6 === 3) {
+            // Use the original scale of the song
+        } else if (measure && measure % 6) {
+            scale = squirrelPick(current.seed, measure, key, scales);
+        }
 
         // console.log("endMeasure", measure);
     };
     const changeMelody = x => {
-        melody = melodies[x] ?? melody;
+        melody = melodies[x] ?? squirrelPick(current.seed, measure, key, Object.values(melodies).filter(m => m !== melody));
         scale = scales[melody.scale] ?? scale;
         key = melody.key ?? key;
         measure = 0;
     };
+    window.changeMelody = changeMelody;
 
     const tickOfMeasure = (dur) => ((((dur / TEMPO) % BEAT_SIGNATURE) | 0) + 1) % BEAT_SIGNATURE;
 
@@ -2143,9 +2349,12 @@ const hireDJ = () => {
     const play = (tick, dur, type = "sine", octave = 1, note = 0, len = 1, vol = 0.5, verb = 0.5, attack = 0.001, deflate = 0.5) => {
         const decay = len * SPB;
         const oct = octave + (note < 0 ? -1 : (note / 7) | 0);
-        // const oct = octave;
-        const freq = notes[key + (oct * 12) + scale[(note + 7) % 7]];
-        // console.log({ tick, note, octave, oct, n: (note + 7) % 7, sick: key + (oct * 13) + scale[(note + 7) % 7], freq });
+        const n = key + (oct * 12) + scale[(note + 14) % 7];
+        const freq = notes[n] ?? notes[n - 12] ?? notes[n + 12];
+        if (!Number.isFinite(freq)) {
+            console.warn("invalid freq being played", { tick, dur, type, octave, note, len, vol, verb, attack, deflate, freq, decay, oct, n })
+            return;
+        }
 
         const t = musicDJ.currentTime;
         const offset = max(((BEAT_SIGNATURE + tick) - ((dur / TEMPO) % BEAT_SIGNATURE)) % BEAT_SIGNATURE * SPB, 0);
@@ -2191,21 +2400,23 @@ const hireDJ = () => {
     const bass = (tick, dur) => {
         const sing =  melody.bass.find(([x]) => x === tick);
         if (!sing) { return; }
-        play(tick, dur, "square", 1, sing[1], sing[2],  0.5, 0.7, 0.01, 0.98);
-        // console.log("bass", tick, sing, offset);
+        play(tick, dur, "square", 1, sing[1], sing[2], 0.5, 0.7, 0.01, 0.98);
     };
 
     const drum = (tick, dur) => {
         const sing =  melody.notes.find(([x]) => x === tick);
         if (!sing) { return; }
-        const offset = measure % 3
-            ? (squirrelFloat(current.seed, tick, dur) > 0.66
+        const offset = measure % 3 && measure !== 12
+            ? (squirrelFloat(current.seed, tick, dur) > 0.75
                 ? squirrelPick(current.seed, dur, tick, [-3, -4, 2, 3, 4, 8, -8])
                 : 0
             )
             : 0;
-        play(tick, dur, "sawtooth", melody.octave, sing[1], sing[2] + offset, 0.7, 0.8, 0.005, 0.98);
-        // console.log("drum", tick, sing, offset);
+        play(tick, dur, "sawtooth", melody.octave, sing[1] + offset, sing[2], 0.7, 0.8, 0.005, 0.98);
+    };
+
+    const splash = () => {
+
     };
 
     const scheduled = new Set();
@@ -2216,7 +2427,6 @@ const hireDJ = () => {
         if (tick !== lasttick) {
             scheduled.delete(lasttick);
             lasttick = tick;
-            // console.log("tick", tick);
         }
         if (musicActive && !scheduled.has(tick)) {
             if (tick === 0) {
