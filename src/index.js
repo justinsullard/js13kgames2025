@@ -532,6 +532,9 @@ const entityGroups = () => ({
     boxes: [],
     doors: [],
     sewers: [],
+    rats: [],
+    dogs: [],
+    humans: [],
 });
 
 const entity = (seed = stamp(), x = 0, y = 0, rot = 0) => ({
@@ -643,6 +646,8 @@ const box = (seed, x, y, r) => ({
 
 const rat = (seed, x, y, r) => ({
     ...actor(seed, x, y, r),
+    radius: 0.5,
+    diameter: 1,
 });
 
 const dog = (s, x, y, r) => ({
@@ -739,7 +744,7 @@ const block = (seed, x, y, address) => {
             addVectors(p, generated.position),
         ));
     trash = squirrelShuffle(seed, x, y, trashy)
-        .filter(x => (!generated.horizontal || abs(x.y) > 2) || (!generated.vertical || abs(x.x) > 2))
+        .filter(x => (!generated.vertical || abs(x.y) > 2) || (!generated.horizontal || abs(x.x) > 2))
         .slice(0, trash)
         .map(p => addVectors(
             scaleVector(squirrelVector(seed, p.x - 7367, p.y + 87863), 0.5),
@@ -779,6 +784,8 @@ const block = (seed, x, y, address) => {
             squirrelPick(s, p.x, p.y, [BROWN, PURPLE, GRAY, ORANGE])
         ));
     });
+    const myrat = trash.pop();
+    generated.rats.push(rat(seed, myrat.x, myrat.y));
     // bags
     stripe(trash.length, i => {
         const p = trash.shift();
@@ -841,25 +848,25 @@ const walls = texture(21, 21).do(s => {
         .fillRect(0.5, -9.5, 9, 9)
         .fillRect(0.5, 0.5, 9, 9);
 });
-let debug = false;
-const debugSprite = (sprite) => {
-    if (!debug) {
-        return;
-    }
-    const r = min(sprite.w, sprite.h);
-    const r2 = r * 0.375;
-    sprite.final.do(s => s
-        .center()
-        .lineWidth(2)
-        .strokeStyle(FGA)
-        .arc(0, 0, r2, 0, PIZZA)
-        .stroke()
-        .lineWidth(1)
-        .strokeStyle(GREEN)
-        .arc(0, 0, r / 2 -1, 0, PIZZA)
-        .stroke()
-    );
-};
+// let debug = false;
+// const debugSprite = (sprite) => {
+//     if (!debug) {
+//         return;
+//     }
+//     const r = min(sprite.w, sprite.h);
+//     const r2 = r * 0.375;
+//     sprite.final.do(s => s
+//         .center()
+//         .lineWidth(2)
+//         .strokeStyle(FGA)
+//         .arc(0, 0, r2, 0, PIZZA)
+//         .stroke()
+//         .lineWidth(1)
+//         .strokeStyle(GREEN)
+//         .arc(0, 0, r / 2 -1, 0, PIZZA)
+//         .stroke()
+//     );
+// };
 
 const renderPuddle = (obj, d = 256, c = BLUE, t = 1) => {
     const sprite = getSprite(obj, d, d, c, t);
@@ -883,7 +890,7 @@ const renderPuddle = (obj, d = 256, c = BLUE, t = 1) => {
         s.fill();
     });
     compositeSprite(sprite, true);
-    debugSprite(sprite);
+    // debugSprite(sprite);
     return sprite;
 };
 
@@ -951,7 +958,7 @@ const renderSplatter = (obj, d = 256, c = RED, t = 3) => {
         s.fill();
     });
     compositeSprite(sprite, true);
-    debugSprite(sprite);
+    // debugSprite(sprite);
     return sprite;
 
 };
@@ -1019,7 +1026,7 @@ const renderPaper = (obj, d = 256, c = GRAY, t = 4) => {
             // .drawImage();
     });
     compositeSprite(sprite, true);
-    debugSprite(sprite);
+    // debugSprite(sprite);
     return sprite;
 };
 
@@ -1214,7 +1221,7 @@ const renderLight = (obj, d = obj.radius * 2, c = "#fff8", t = 5) => {
     // sketchify(sprite.final, obj.seed);
     sprite.scribble.do(s => s.center().fillStyle(BG).beginPath().arc(0, 0, 13, 0, PIZZA).fill());
     compositeSprite(sprite, true);
-    debugSprite(sprite);
+    // debugSprite(sprite);
     return sprite;
 };
 
@@ -1243,8 +1250,8 @@ const renderDumpster = (obj) => {
             squirrelRotation(obj.seed + 1, 0, 0),
             ceil((1.5 + squirrelFloat(obj.seed + 1, 0, 0)))
         );
-        const wbuff = w2 - trash.diameter / 2 - 12;
-        const hbuff = h2 - trash.diameter / 2 - 8;
+        const wbuff = w2 - (trash.radius * GAME_SCALE) - 12;
+        const hbuff = h2 - (trash.radius * GAME_SCALE) - 8;
         s.center()
             .rotate(obj.rot)
             .fillStyle(BGA).globalCompositeOperation("destination-out")
@@ -1257,13 +1264,83 @@ const renderDumpster = (obj) => {
                     // trash.diameter,
                     // squirrelPick(trash.seed, -1, 9, [FGA, BGB])
                 ).final.screen,
-                -trash.diameter / 2 + squirrelBias(trash.seed, 8, 23) * wbuff,
-                -trash.diameter / 2 + squirrelBias(trash.seed, 2, 1) * hbuff
+                -trash.radius * GAME_SCALE + squirrelBias(trash.seed, 8, 23) * wbuff,
+                -trash.radius * GAME_SCALE + squirrelBias(trash.seed, 2, 1) * hbuff
             );
 
     });
     compositeSprite(sprite, true);
     return sprite;
+};
+
+const renderRat = (obj) => {
+    const { gametime } = current;
+    const sprite = getSprite(obj, GAME_SCALE * 1.5, GAME_SCALE * 1.5, BROWN, 3);
+    const cycle = sin(gametime / EIGHTH);
+    const tcycle = sin(gametime / BEAT) * 0.25;
+    const head = vector(-cycle * 3, -10);
+    const body = vector(0, -1);
+    const headRot =  cycle * 0.25;
+    const tail = rotateVector(vector(0, 45), -tcycle);
+    // Head and body
+    sprite.bg
+        .save()
+        .clear()
+        .fillStyle(BG)
+        .strokeStyle(BG)
+        .lineWidth(4)
+        .lineCap("round")
+        .center()
+        .rotate(-obj.rot)
+        .do(s => s
+            .translate(head.x, head.y)
+            .rotate(headRot)
+            .beginPath()
+            .moveTo(0, -30)
+            .lineTo(5, -0)
+            .lineTo(-5, -0)
+            .closePath()
+            .fill()
+            .stroke()
+        )
+        // Body
+        .do(s => s
+                .beginPath()
+                .ellipse(body.x, body.y, 9, 17, 0, 0, PIZZA)
+                .closePath()
+                .fill()
+        )
+        // Tail
+        .do(s => {
+            if (!obj.dead) {
+                s
+                    .lineWidth(3)
+                    .beginPath()
+                    .moveTo(0, 8)
+                    .bezierCurveTo(
+                        tail.x * 0.5, 25,
+                        tail.x * -0.25,  tail.y * 0.8 + abs(tail.x) / 2, //tail.y + bodyRY / 2,
+                        tail.x, tail.y
+                    )
+                    .stroke()
+            }
+        })
+        // Legs
+        .restore();
+    if (!mouse.touchScreen || mouse.touch) {
+        drawPath(mouse.path.slice(obj.path.length ? 1 : 0));
+    }
+    drawPath([obj.position, ...obj.path], GREEN, 1);
+    // Final Composite
+    compositeSprite(sprite);
+    // debugSprite(sprite);
+    if (obj.dead) {
+        gameCtx.globalAlpha = 0.5;
+    };
+    drawSprite(sprite, obj, FGA);
+    if (obj.dead) {
+        gameCtx.globalAlpha = 1;
+    };
 };
 
 // const testScribble = (() => {
@@ -1440,6 +1517,12 @@ const updateMouse = () => {
             }
         });
         if (!target) {
+            target = current.activeGroups.rats
+                .map(b => [b, distanceBetween(b.position, mouse.position)])
+                .filter(([b, m]) => m < b.radius)
+                .sort((a, b) => a[1] - b[1])[0]?.[0];
+        }
+        if (!target) {
             target = current.activeGroups.bags
                 .map(b => [b, distanceBetween(b.position, mouse.position)])
                 .filter(([b, m]) => m < b.radius)
@@ -1540,6 +1623,65 @@ const updatePlayer = (delta = 0) => {
     }
     if (isNaN(player.rot)) {
         player.rot = oldrot;
+    }
+};
+
+const updateRat = (obj, delta = 0) => {
+    const oldrot = player.rot;
+    if (obj.dead) {
+        // Move it towards home
+    } else if (!obj.path.length && !obj.action) {
+        // Find a new target and go there
+        obj.target = squirrelPick(obj.seed, obj.position.x, obj.position.y, current.activeGroups.bags);
+        obj.path = plotPath(obj.position, obj.target.position, obj.speed);
+    } else {
+        // Update towards the next path point.
+        const curr = obj.action;
+        if (curr) {
+            // Update the current action
+            if (curr.kind === "jumping") {
+                curr.elapsed = min(curr.elapsed + delta, curr.dur);
+                const t = obj.easeFunction(curr.elapsed / curr.dur);
+                const dest = lerpVector(curr.from, curr.to, t);
+                if (!isNaN(dest.x) && !isNaN(dest.y)) {
+                    obj.position = dest;
+                }
+                obj.rot = lerpAngle(obj.rot, curr.rot, 0.1);
+                if (curr.elapsed >= curr.dur) {
+
+                    // Action is complete, should we:
+                    // - play a sound
+                    // - add paw prints
+                    // - make a splash?
+
+                    // Pop off the first path and clear the action
+                    obj.path.shift();
+                    obj.action = null;
+
+                    // Now we check where we landed for:
+                    // Dumpster, Sewer, Box, Bag, Rat, Puddle, Paper
+                    if (obj.position.x === obj.target.x && obj.position.y === obj.target.y) {
+                        // Go into the target
+                        if (obj.block) {
+                            obj.block.rats.splice(obj.block.rats.indexOf(obj), 1);
+                        }
+                        obj.target.contents.push(obj);
+                    }
+                }
+            }
+        } else if (obj.path.length) {
+            // Create a new action
+            const target = obj.path[0];
+            const diff = subtractVectors(target, obj.position);
+            const dur = max(
+                10,
+                ceil(measureVector(diff) / obj.speed * BEAT)
+            );
+            obj.action = action("jumping", obj.position, target, dur);
+        }
+    }
+    if (isNaN(obj.rot)) {
+        obj.rot = oldrot;
     }
 };
 
@@ -1773,8 +1915,8 @@ const drawBag = (obj) => {
     drawSprite(getSprite(obj), obj)
 };
 
-const drawGeneric = (obj, fn) => {
-    if (!hasSprite(obj)) {
+const drawGeneric = (obj, fn, active) => {
+    if (!hasSprite(obj) || active) {
         fn(obj);
     }
     const s = getSprite(obj)
@@ -1783,22 +1925,14 @@ const drawGeneric = (obj, fn) => {
 
 const drawPlayer = () => {
     const { player, gametime } = current;
-    // const bg = "#000";
-    // const fg = "#223";//BG;
     const bg = BG;
     const fg = "#000";
     const sprite = getSprite(player, 256, 256, fg, 3);
-    // Draw Mouth Item
-    // Draw Base Shape
     const cycle = sin(gametime / SIXTEENTH);
     const tcycle = sin(gametime / EIGHTH) * 0.5;
     const head = vector(cycle * 3, -45);
     const body = vector(0, 0);
     const headRot =  cycle * 0.25;
-    // const headRX = 40;
-    // const headRY = 35;
-    // const bodyRX = 35;
-    // const bodyRY = 32.5;
     const headRX = 35;
     const headRY = 30;
     const bodyRX = 30;
@@ -1860,33 +1994,10 @@ const drawPlayer = () => {
         })
         // Legs
         .restore();
-
-    // gameCtx.save();
-    // gameCtx.globalAlpha = 0.75;
-    // gameCtx.lineWidth = 1;
-    // gameCtx.setLineDash([2, 3]);
-    // gameCtx.strokeStyle = GREEN;
-    // gameCtx.beginPath();
-    // const last = player.path - 1;
-    // player.path.forEach((vec, i) => {
-    //     const x = vec.x * GAME_SCALE;
-    //     const y = vec.y * GAME_SCALE;
-    //     if (i && 1 != last) {
-    //         gameCtx.lineTo(x, y);
-    //         gameCtx.arc(x, y, 7, 0, PIZZA);
-    //     }
-    //     gameCtx.moveTo(x, y);
-    // });
-    // gameCtx.stroke();
-    // // For each node in the path, we either moveTo, or we LineTo
-    // gameCtx.restore();
-
-    // drawPath(mouse.path.slice(player.path.length ? 1 : 0), FG, 0.5);
     if (!mouse.touchScreen || mouse.touch) {
         drawPath(mouse.path.slice(player.path.length ? 1 : 0));
     }
     drawPath([player.position, ...player.path], GREEN, 1);
-
     // Final Composite
     compositeSprite(sprite);
     if (player.dead) {
@@ -1896,7 +2007,6 @@ const drawPlayer = () => {
     if (player.dead) {
         gameCtx.globalAlpha = 1;
     };
-
 };
 
 const drawLight = (obj) => {
@@ -1974,7 +2084,7 @@ const draw = (delta) => {
             gameCtx.globalAlpha = 1;
         }
         gameCtx.fillStyle = FG;
-        gameCtx.font = 'bold 16px Palatino'; // Georgia, Palatino, Times New Roman, Times
+        // gameCtx.font = 'bold 16px Palatino, Georgia, Times New Roman'; // Georgia, Palatino, Times New Roman, Times
         gameCtx.drawImage(logo.screen, W2 - logo.w2, H2 - logo.h / 2);
         return;
     }
@@ -2008,6 +2118,7 @@ const draw = (delta) => {
     entities.bags.forEach(x => drawGeneric(x, renderBag));
     // Draw Box Bottoms
     // Draw Rats
+    entities.rats.forEach(x => drawGeneric(x, renderRat, true));
     // Draw Dumpster Bottoms
     entities.dumpsters.forEach(x => drawGeneric(x, renderDumpster));
     // Draw Player
@@ -2042,10 +2153,10 @@ const draw = (delta) => {
     gameCtx.restore();
     // Draw HUD
     // score and multiplier
-    gameCtx.font = '42px bold Courier New, monospace';
+    gameCtx.font = 'bold 42px sans-serif';
     gameCtx.fillStyle = FG;
-    gameCtx.fillText(fix(current.player.score, 0), 10, 42);
-    gameCtx.font = '32px bold Courier New, monospace';
+    gameCtx.fillText(`SCORE: ${fix(current.player.score, 0)}`, 10, 42);
+    gameCtx.font = 'bold 32px sans-serif';
     gameCtx.fillStyle = GREEN;
     gameCtx.fillText(`x${fix(current.player.multiplier, 0)}`, 10, 74);
     // lives
@@ -2095,8 +2206,8 @@ listen(window, "keydown", (ev) => {
         case "p":
             current.paused = !current.paused;
             break;
-        case "d":
-            debug = !debug;
+        // case "d":
+        //     debug = !debug;
         default:
     }
 });
@@ -2260,8 +2371,8 @@ const hireDJ = () => {
         },
         ohno: {
             scale: 6,
-            octave: 3,
-            key: 8,
+            octave: 2,
+            key: 1,
             notes: [
                 [0, 0, 1],
                 [1, 1, 1],
